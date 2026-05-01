@@ -15,9 +15,7 @@ type Node = {
   isWall: boolean;
 };
 
-// セルごとに「どの実行・セグメントで訪問/パスになったか」を記録
 type CellHistory = {
-  // runIdx_segIdx -> true
   visited: Record<string, boolean>;
   path: Record<string, boolean>;
 };
@@ -122,14 +120,8 @@ function* search(grid: Node[][], start: Pos, goal: Pos, useAstar: boolean) {
       return;
     }
 
-    for (const [dx, dy] of [
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1],
-    ]) {
-      const nx = x + dx,
-        ny = y + dy;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx, ny = y + dy;
       if (nx < 0 || ny < 0 || nx >= GRID_SIZE || ny >= GRID_SIZE) continue;
       const next = grid[ny][nx];
       if (next.isWall) continue;
@@ -144,7 +136,6 @@ function* search(grid: Node[][], start: Pos, goal: Pos, useAstar: boolean) {
   }
 }
 
-// セグメントインデックスに対応する色セット
 const SEG_COLORS = [
   { visited: "rgba(33,150,243,0.25)", path: "#1565c0" },
   { visited: "rgba(233,30,99,0.22)", path: "#c2185b" },
@@ -153,16 +144,9 @@ const SEG_COLORS = [
   { visited: "rgba(156,39,176,0.22)", path: "#6a1b9a" },
 ];
 
-// 実行インデックスに対応する透明度（古いものを薄く）
-function runAlpha(runIdx: number, latestRunIdx: number): number {
-  const age = latestRunIdx - runIdx;
-  return Math.max(0.2, 1 - age * 0.25);
-}
-
 const POINT_COLORS = ["#00c896", "#e8365d", "#f5a623", "#7b5ea7", "#2196f3"];
 const MAX_POINTS = 5;
 
-// 履歴エントリー
 type HistoryEntry = {
   runIdx: number;
   mode: "dijkstra" | "astar";
@@ -173,15 +157,11 @@ type HistoryEntry = {
 
 export default function App() {
   const [grid, setGrid] = useState<Node[][]>(makeEmptyGrid);
-  // セルごとの履歴（run_seg -> visited/path）
-  const [cellHistory, setCellHistory] =
-    useState<CellHistory[][]>(makeEmptyHistory);
+  const [cellHistory, setCellHistory] = useState<CellHistory[][]>(makeEmptyHistory);
   const [points, setPoints] = useState<Pos[]>([]);
   const [mode, setMode] = useState<"dijkstra" | "astar">("dijkstra");
   const [isRunning, setIsRunning] = useState(false);
   const [runLog, setRunLog] = useState<HistoryEntry[]>([]);
-  const [latestRunIdx, setLatestRunIdx] = useState(-1);
-  // 表示フィルタ：どの実行を表示するか（nullなら全表示）
   const [highlightRun, setHighlightRun] = useState<number | null>(null);
 
   const runningRef = useRef(false);
@@ -229,11 +209,9 @@ export default function App() {
     setIsRunning(true);
 
     const runIdx = runCountRef.current++;
-    setLatestRunIdx(runIdx);
     setHighlightRun(null);
 
     let workGrid = resetSearchState(grid);
-    // cellHistoryはimmutableにコピーして更新
     const histCopy: CellHistory[][] = cellHistory.map((row) =>
       row.map((c) => ({ visited: { ...c.visited }, path: { ...c.path } }))
     );
@@ -245,14 +223,8 @@ export default function App() {
     for (let segIdx = 0; segIdx < points.length - 1; segIdx++) {
       workGrid = resetSearchState(workGrid);
       const key = `${runIdx}_${segIdx}`;
-      const gen = search(
-        workGrid,
-        points[segIdx],
-        points[segIdx + 1],
-        mode === "astar"
-      );
-      let segVisited = 0,
-        segPath = 0;
+      const gen = search(workGrid, points[segIdx], points[segIdx + 1], mode === "astar");
+      let segVisited = 0, segPath = 0;
 
       for (const e of gen) {
         if (!runningRef.current) break;
@@ -268,7 +240,6 @@ export default function App() {
           totalPath++;
           segPath++;
         }
-        // グリッドとhistoryを同時更新
         setGrid(workGrid.map((r) => [...r]));
         setCellHistory(histCopy.map((r) => r.map((c) => ({ ...c }))));
         await new Promise((r) => setTimeout(r, 12));
@@ -278,13 +249,7 @@ export default function App() {
 
     setRunLog((prev) => [
       ...prev,
-      {
-        runIdx,
-        mode,
-        segments: segStats,
-        totalVisited,
-        totalPath,
-      },
+      { runIdx, mode, segments: segStats, totalVisited, totalPath },
     ]);
 
     runningRef.current = false;
@@ -298,7 +263,6 @@ export default function App() {
     setCellHistory(makeEmptyHistory());
     setPoints([]);
     setRunLog([]);
-    setLatestRunIdx(-1);
     setHighlightRun(null);
     runCountRef.current = 0;
   };
@@ -308,26 +272,11 @@ export default function App() {
     setGrid((prev) => resetSearchState(prev));
     setCellHistory(makeEmptyHistory());
     setRunLog([]);
-    setLatestRunIdx(-1);
     setHighlightRun(null);
     runCountRef.current = 0;
   };
 
-  const Btn = ({
-    label,
-    onClick,
-    active = false,
-    disabled = false,
-    accent = "#555",
-    small = false,
-  }: {
-    label: string;
-    onClick: () => void;
-    active?: boolean;
-    disabled?: boolean;
-    accent?: string;
-    small?: boolean;
-  }) => (
+  const Btn = ({ label, onClick, active = false, disabled = false, accent = "#555", small = false }: any) => (
     <button
       onClick={onClick}
       disabled={disabled}
@@ -349,21 +298,12 @@ export default function App() {
     </button>
   );
 
-  // セルの表示色を決定
   const getCellDisplay = (node: Node, hist: CellHistory) => {
-    // 表示対象のキーを絞る
-    const filterKey =
-      highlightRun !== null
-        ? (k: string) => k.startsWith(`${highlightRun}_`)
-        : () => true;
-
-    // pathキーを集める（セグメント別に色分け）
+    const filterKey = highlightRun !== null ? (k: string) => k.startsWith(`${highlightRun}_`) : () => true;
     const pathKeys = Object.keys(hist.path).filter(filterKey);
     const visitedKeys = Object.keys(hist.visited).filter(filterKey);
 
-    // 最新のpathキーを優先
     if (pathKeys.length > 0) {
-      // 最新のセグメントで着色
       const latest = pathKeys.sort().at(-1)!;
       const segIdx = parseInt(latest.split("_")[1]);
       const color = SEG_COLORS[segIdx % SEG_COLORS.length].path;
@@ -389,380 +329,4 @@ export default function App() {
         flexDirection: "column",
         alignItems: "center",
         padding: "24px 16px",
-        userSelect: "none",
-      }}
-      onMouseUp={handleMouseUp}
-      onContextMenu={(e) => e.preventDefault()}
-    >
-      {/* Title */}
-      <div style={{ marginBottom: 16, textAlign: "center" }}>
-        <div
-          style={{
-            fontSize: 10,
-            letterSpacing: 5,
-            color: "#888",
-            marginBottom: 4,
-            textTransform: "uppercase",
-          }}
-        >
-          Pathfinding Visualizer
-        </div>
-        <div
-          style={{
-            fontSize: 20,
-            fontWeight: 700,
-            letterSpacing: 1,
-            color: "#222",
-          }}
-        >
-          {mode === "astar" ? "A* Search" : "Dijkstra's Algorithm"}
-        </div>
-      </div>
-
-      {/* Controls */}
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          marginBottom: 12,
-          flexWrap: "wrap",
-          justifyContent: "center",
-        }}
-      >
-        <Btn
-          label="DIJKSTRA"
-          onClick={() => !isRunning && setMode("dijkstra")}
-          active={mode === "dijkstra"}
-          accent="#2196f3"
-        />
-        <Btn
-          label="A* STAR"
-          onClick={() => !isRunning && setMode("astar")}
-          active={mode === "astar"}
-          accent="#2196f3"
-        />
-        <div style={{ width: 1, background: "#bbb", margin: "0 4px" }} />
-        <Btn
-          label={isRunning ? "RUNNING..." : "▶ RUN"}
-          onClick={run}
-          disabled={isRunning || points.length < 2}
-          accent="#e8365d"
-        />
-        <Btn
-          label="CLEAR HISTORY"
-          onClick={clearHistory}
-          disabled={isRunning}
-        />
-        <Btn label="RESET" onClick={reset} />
-      </div>
-
-      {/* Instruction */}
-      <div
-        style={{
-          fontSize: 10,
-          color: "#888",
-          marginBottom: 12,
-          letterSpacing: 1,
-          textAlign: "center",
-          lineHeight: 1.8,
-        }}
-      >
-        <span style={{ color: "#00a070", fontWeight: 700 }}>左クリック</span> →
-        ポイント追加 &nbsp;|&nbsp;
-        <span style={{ color: "#555", fontWeight: 700 }}>右ドラッグ</span> →
-        壁を描く / 消す
-        {points.length < 2 && (
-          <span style={{ color: "#e8365d", marginLeft: 8 }}>
-            ※ 2点以上置いてください
-          </span>
-        )}
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          gap: 16,
-          alignItems: "flex-start",
-          flexWrap: "wrap",
-          justifyContent: "center",
-        }}
-      >
-        {/* Grid */}
-        <div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: `repeat(${GRID_SIZE}, ${CELL_SIZE}px)`,
-              gap: 1,
-              background: "#b0b0b0",
-              padding: 8,
-              borderRadius: 6,
-              border: "1px solid #999",
-              boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
-            }}
-          >
-            {grid.map((row, y) =>
-              row.map((node, x) => {
-                const ptIdx = points.findIndex((p) => p.x === x && p.y === y);
-                const isPoint = ptIdx !== -1;
-                const hist = cellHistory[y][x];
-                const { bg, dot, dotSize, glow } = getCellDisplay(node, hist);
-
-                return (
-                  <div
-                    key={`${x},${y}`}
-                    onClick={() => handleCellClick(x, y)}
-                    onMouseDown={(e) => handleMouseDown(x, y, e)}
-                    onMouseEnter={() => handleMouseEnter(x, y)}
-                    style={{
-                      width: CELL_SIZE,
-                      height: CELL_SIZE,
-                      background: node.isWall ? "#5a5a5a" : bg,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      cursor: isRunning ? "default" : "crosshair",
-                      position: "relative",
-                      transition: "background 0.06s",
-                      borderRadius: 2,
-                    }}
-                  >
-                    {node.isWall && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          inset: 0,
-                          background:
-                            "repeating-linear-gradient(45deg, #4a4a4a 0px, #4a4a4a 3px, #5a5a5a 3px, #5a5a5a 6px)",
-                          borderRadius: 2,
-                        }}
-                      />
-                    )}
-                    {dot && !isPoint && (
-                      <div
-                        style={{
-                          width: dotSize,
-                          height: dotSize,
-                          borderRadius: "50%",
-                          background: dot,
-                          boxShadow: glow ? `0 0 4px ${glow}` : undefined,
-                          zIndex: 1,
-                          position: "relative",
-                        }}
-                      />
-                    )}
-                    {isPoint && (
-                      <div
-                        style={{
-                          width: 18,
-                          height: 18,
-                          borderRadius: "50%",
-                          background: POINT_COLORS[ptIdx] + "33",
-                          border: `2px solid ${POINT_COLORS[ptIdx]}`,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 8,
-                          fontWeight: 700,
-                          color: POINT_COLORS[ptIdx],
-                          boxShadow: `0 0 6px ${POINT_COLORS[ptIdx]}88`,
-                          zIndex: 2,
-                          position: "relative",
-                        }}
-                      >
-                        {ptIdx + 1}
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          {/* Legend */}
-          <div
-            style={{
-              display: "flex",
-              gap: 14,
-              marginTop: 12,
-              fontSize: 10,
-              color: "#666",
-              letterSpacing: 1,
-              flexWrap: "wrap",
-            }}
-          >
-            {SEG_COLORS.slice(0, Math.max(1, points.length - 1)).map((c, i) => (
-              <div
-                key={i}
-                style={{ display: "flex", alignItems: "center", gap: 4 }}
-              >
-                <div
-                  style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: 2,
-                    background: c.visited,
-                    border: `1.5px solid ${c.path}`,
-                  }}
-                />
-                SEG {i + 1}
-              </div>
-            ))}
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <div
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: 2,
-                  background: "#5a5a5a55",
-                  border: "1.5px solid #5a5a5a",
-                }}
-              />
-              WALL
-            </div>
-          </div>
-        </div>
-
-        {/* 実行履歴パネル */}
-        <div
-          style={{
-            minWidth: 200,
-            maxWidth: 240,
-            background: "#c4c4c4",
-            borderRadius: 6,
-            border: "1px solid #aaa",
-            padding: "12px",
-            fontSize: 11,
-          }}
-        >
-          <div
-            style={{
-              fontWeight: 700,
-              letterSpacing: 2,
-              color: "#444",
-              marginBottom: 10,
-              fontSize: 10,
-            }}
-          >
-            HISTORY ({runLog.length} runs)
-          </div>
-
-          {runLog.length === 0 && (
-            <div style={{ color: "#999", fontSize: 10 }}>
-              まだ実行されていません
-            </div>
-          )}
-
-          {[...runLog].reverse().map((entry) => {
-            const isHighlighted = highlightRun === entry.runIdx;
-            return (
-              <div
-                key={entry.runIdx}
-                onClick={() =>
-                  setHighlightRun(isHighlighted ? null : entry.runIdx)
-                }
-                style={{
-                  marginBottom: 8,
-                  padding: "8px 10px",
-                  borderRadius: 4,
-                  border: `1.5px solid ${isHighlighted ? "#2196f3" : "#bbb"}`,
-                  background: isHighlighted
-                    ? "rgba(33,150,243,0.1)"
-                    : "#d0d0d0",
-                  cursor: "pointer",
-                  transition: "all 0.15s",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    marginBottom: 4,
-                  }}
-                >
-                  <span style={{ fontWeight: 700, color: "#333" }}>
-                    Run #{entry.runIdx + 1}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: 9,
-                      padding: "1px 6px",
-                      borderRadius: 3,
-                      background:
-                        entry.mode === "astar" ? "#e8365d22" : "#2196f322",
-                      color: entry.mode === "astar" ? "#c2185b" : "#1565c0",
-                      border: `1px solid ${
-                        entry.mode === "astar" ? "#c2185b" : "#1565c0"
-                      }`,
-                    }}
-                  >
-                    {entry.mode === "astar" ? "A*" : "DIJ"}
-                  </span>
-                </div>
-                <div style={{ color: "#555", fontSize: 10, lineHeight: 1.6 }}>
-                  <div>
-                    訪問:{" "}
-                    <span style={{ color: "#1565c0" }}>
-                      {entry.totalVisited}
-                    </span>
-                  </div>
-                  <div>
-                    パス長:{" "}
-                    <span style={{ color: "#c87000" }}>
-                      {entry.totalPath > 0
-                        ? entry.totalPath - entry.segments.length
-                        : 0}
-                    </span>
-                  </div>
-                </div>
-                <div style={{ marginTop: 4 }}>
-                  {entry.segments.map((seg, si) => (
-                    <div
-                      key={si}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 4,
-                        fontSize: 9,
-                        color: "#777",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: 1,
-                          background: SEG_COLORS[si % SEG_COLORS.length].path,
-                        }}
-                      />
-                      区間{si + 1}: 訪問{seg.visited} / 経路
-                      {Math.max(0, seg.path - 1)}
-                    </div>
-                  ))}
-                </div>
-                {isHighlighted && (
-                  <div style={{ fontSize: 9, color: "#2196f3", marginTop: 4 }}>
-                    ● この実行をハイライト中
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          {runLog.length > 0 && (
-            <div
-              style={{
-                fontSize: 9,
-                color: "#999",
-                marginTop: 4,
-                lineHeight: 1.5,
-              }}
-            >
-              クリックで特定の実行をハイライト表示
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+        userSelect: "
