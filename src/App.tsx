@@ -329,4 +329,134 @@ export default function App() {
         flexDirection: "column",
         alignItems: "center",
         padding: "24px 16px",
-        userSelect: "
+        userSelect: "none",
+      }}
+      onMouseUp={handleMouseUp}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      <h2 style={{ margin: "0 0 20px 0", fontSize: 20, fontWeight: 800 }}>PATHFINDER SIMULATOR</h2>
+
+      <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap", justifyContent: "center" }}>
+        <Btn label="DIJKSTRA" onClick={() => setMode("dijkstra")} active={mode === "dijkstra"} accent="#2196f3" disabled={isRunning} />
+        <Btn label="A* SEARCH" onClick={() => setMode("astar")} active={mode === "astar"} accent="#e91e63" disabled={isRunning} />
+        <div style={{ width: 1, background: "#aaa", margin: "0 8px" }} />
+        <Btn label="RUN SIMULATION" onClick={run} disabled={isRunning || points.length < 2} accent="#4caf50" />
+        <Btn label="CLEAR HISTORY" onClick={clearHistory} disabled={isRunning} />
+        <Btn label="RESET ALL" onClick={reset} disabled={isRunning} />
+      </div>
+
+      <div style={{ display: "flex", gap: 32, alignItems: "flex-start", flexWrap: "wrap", justifyContent: "center" }}>
+        {/* Grid Container */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: `repeat(${GRID_SIZE}, ${CELL_SIZE}px)`,
+            gap: 1,
+            background: "#aaa",
+            border: "2px solid #555",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+          }}
+        >
+          {grid.map((row, y) =>
+            row.map((node, x) => {
+              const display = getCellDisplay(node, cellHistory[y][x]);
+              const pointIdx = points.findIndex((p) => p.x === x && p.y === y);
+              const isPoint = pointIdx !== -1;
+
+              return (
+                <div
+                  key={`${x}-${y}`}
+                  onMouseDown={(e) => handleMouseDown(x, y, e)}
+                  onMouseEnter={() => handleMouseEnter(x, y)}
+                  onClick={() => handleCellClick(x, y)}
+                  style={{
+                    width: CELL_SIZE,
+                    height: CELL_SIZE,
+                    background: node.isWall ? "#333" : display.bg,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: isRunning ? "not-allowed" : "pointer",
+                    transition: "background 0.2s",
+                    position: "relative",
+                  }}
+                >
+                  {display.dot && !isPoint && !node.isWall && (
+                    <div
+                      style={{
+                        width: display.dotSize,
+                        height: display.dotSize,
+                        borderRadius: "50%",
+                        background: display.dot,
+                        boxShadow: `0 0 8px ${display.glow}`,
+                      }}
+                    />
+                  )}
+                  {isPoint && (
+                    <div
+                      style={{
+                        width: 14,
+                        height: 14,
+                        borderRadius: "50%",
+                        background: POINT_COLORS[pointIdx % POINT_COLORS.length],
+                        color: "white",
+                        fontSize: 9,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontWeight: "bold",
+                        zIndex: 2,
+                        boxShadow: "0 0 6px rgba(0,0,0,0.3)",
+                      }}
+                    >
+                      {pointIdx + 1}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Sidebar Log */}
+        <div style={{ width: 280, display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, borderBottom: "1px solid #aaa", paddingBottom: 4 }}>
+            HISTORY LOG
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 600, overflowY: "auto" }}>
+            {runLog.length === 0 && <div style={{ fontSize: 10, color: "#888", fontStyle: "italic" }}>No runs yet...</div>}
+            {[...runLog].reverse().map((log) => (
+              <div
+                key={log.runIdx}
+                onMouseEnter={() => setHighlightRun(log.runIdx)}
+                onMouseLeave={() => setHighlightRun(null)}
+                style={{
+                  padding: 10,
+                  background: highlightRun === log.runIdx ? "#e0e0e0" : "#f0f0f0",
+                  borderRadius: 4,
+                  fontSize: 10,
+                  border: `1px solid ${highlightRun === log.runIdx ? "#888" : "#ccc"}`,
+                  cursor: "default",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <span style={{ fontWeight: 800 }}>RUN #{log.runIdx + 1}</span>
+                  <span style={{ color: log.mode === "astar" ? "#e91e63" : "#2196f3" }}>{log.mode.toUpperCase()}</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <div>Total Visited: {log.totalVisited} cells</div>
+                  <div>Total Path: {log.totalPath} cells</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 32, fontSize: 10, color: "#666", textAlign: "center", maxWidth: 500, lineHeight: 1.6 }}>
+        <strong>HOW TO USE:</strong> Left-click to place up to 5 points. Right-click and drag to draw walls. 
+        Select an algorithm and click RUN. Hover over history items to highlight specific runs.
+      </div>
+    </div>
+  );
+}
